@@ -47,8 +47,6 @@ class MVLinear(nn.Module):
         )
         weight = self.param("weight", normal(stddev), weight_shape)
 
-        print("This is what input and weight look like before einsum in MVLinear:", input.shape, weight.shape)
-
         # Forward pass for each grade or whole multivector
         if self.subspaces:
             weight = jnp.repeat(weight, self.algebra.subspaces, axis=-1)
