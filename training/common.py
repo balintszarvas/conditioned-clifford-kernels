@@ -11,6 +11,7 @@ from .losses import (
     compute_losses_ns,
     compute_losses_maxwell3d,
     compute_losses_maxwell2d,
+    compute_losses_mnist,
 )
 
 
@@ -64,6 +65,7 @@ def train_eval_pmap_fn(experiment: str):
         "ns": compute_losses_ns,
         "maxwell3d": compute_losses_maxwell3d,
         "maxwell2d": compute_losses_maxwell2d,
+        "mnist": compute_losses_mnist,
     }
     compute_losses = compute_losses_dict[experiment]
 
@@ -194,7 +196,7 @@ def train_and_evaluate(
     return state
 
 
-TEST_AGGR_STEPS = {"ns": 10, "maxwell3d": 10, "maxwell2d": 10}
+TEST_AGGR_STEPS = {"ns": 10, "maxwell3d": 10, "maxwell2d": 10, "mnist": 1}
 
 
 def test(

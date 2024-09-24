@@ -51,6 +51,8 @@ class FullyConnectedSteerableGeometricProductLayer(nn.Module):
             self.algebra, self.in_features, self.out_features, self.product_paths_sum
         )()
 
+        print("This is what input looks like before MVLinear in FullyConnectedSteerableGeometricProductLayer:", input.shape)
+
         # Applying a linear transformation to the input
         input_right = MVLinear(
             self.algebra, self.in_features, self.in_features, bias_dims=None
@@ -58,6 +60,8 @@ class FullyConnectedSteerableGeometricProductLayer(nn.Module):
 
         if self.normalization:
             input_right = GradeNorm(self.algebra)(input_right)
+
+        print("This is what input, input_right and weighted_cayley look like after after MVLinear and gradenorm in FullyConnectedSteerableGeometricLayer:", input.shape, input_right.shape, weighted_cayley.shape)
 
         # Weighted geometric product
         out = jnp.einsum(

@@ -1,5 +1,6 @@
 from .resnet import ResNet
 from .csresnet import CSResNet
+from .csresmnist import CSResNetMnist
 
 try:
     from .sresnet import SteerableResNet
