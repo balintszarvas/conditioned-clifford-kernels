@@ -1,10 +1,12 @@
 import jax.numpy as jnp
+import jax
 from flax import linen as nn
 from jax.nn.initializers import ones
 
 from ..core.cayley import WeightedCayley
 from .shell import ScalarShell, compute_scalar_shell
 from .network import KernelNetwork
+from algebra.cliffordalgebra import CliffordAlgebra
 
 
 def generate_kernel_grid(kernel_size, dim):

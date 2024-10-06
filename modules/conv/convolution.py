@@ -4,6 +4,7 @@ from flax import linen as nn
 from jax.nn.initializers import zeros
 
 from .kernel import CliffordSteerableKernel
+from .ckernel import reshape_mv_tensor, reshape_back, conv_kernel, ComposedCliffordSteerableKernel
 
 
 class CliffordSteerableConv(nn.Module):
@@ -15,6 +16,7 @@ class CliffordSteerableConv(nn.Module):
         c_in (int): The number of input channels.
         c_out (int): The number of output channels.
         kernel_size (int): The size of the kernel.
+        kernel_type (string): The type of kernel to use.
         bias_dims (tuple): Dimensions for the bias terms.
         product_paths_sum (int): The number of non-zero elements in the Cayley table.
             - given by algebra.geometric_product_paths.sum().item()
@@ -29,6 +31,7 @@ class CliffordSteerableConv(nn.Module):
     c_in: int
     c_out: int
     kernel_size: int
+    kernel_type: str # "default" or "composed"
     bias_dims: tuple
     product_paths_sum: int
     num_layers: int
@@ -48,7 +51,20 @@ class CliffordSteerableConv(nn.Module):
         The output multivector of shape (N, c_out, X_1, ..., X_dim, 2**algebra.dim).
         """
         # Initializing kernel
-        kernel = CliffordSteerableKernel(
+
+        if self.kernel_type == "composed":
+            kernel = ComposedCliffordSteerableKernel(
+                algebra=self.algebra,
+                c_in=self.c_in,
+                c_out=self.c_out,
+                kernel_size=self.kernel_size,
+                num_layers=self.num_layers,
+                hidden_dim=self.hidden_dim,
+                bias_dims=self.bias_dims,
+                product_paths_sum=self.product_paths_sum,
+            )()
+        else:
+            kernel = CliffordSteerableKernel(
             algebra=self.algebra,
             c_in=self.c_in,
             c_out=self.c_out,

@@ -19,6 +19,7 @@ class CSBasicBlock(nn.Module):
         num_layers (int): The number of layers in the network.
         hidden_dim (int): The number of features in the hidden layers.
         kernel_size (int): The size of the kernel.
+        kernel_type (str): The type of kernel to use: "default" or "composed".
         bias_dims (tuple): Dimensions for the bias terms.
         stride (int): The stride of the convolution.
         expansion (int): The expansion factor for the number of channels.
@@ -32,6 +33,7 @@ class CSBasicBlock(nn.Module):
     num_layers: int
     hidden_dim: int
     kernel_size: int
+    kernel_type: str
     bias_dims: tuple
     stride: int = 1
     expansion: int = 1
@@ -54,6 +56,7 @@ class CSBasicBlock(nn.Module):
             "num_layers": self.num_layers,
             "hidden_dim": self.hidden_dim,
             "kernel_size": self.kernel_size,
+            "kernel_type": self.kernel_type,
             "bias_dims": self.bias_dims,
             "product_paths_sum": self.product_paths_sum,
             "padding_mode": self.padding_mode,
@@ -109,6 +112,7 @@ class CSResNet(nn.Module):
         kernel_num_layers (int): The number of layers in the network.
         kernel_hidden_dim (int): The number of features in the hidden layers.
         kernel_size (int): The size of the kernel.
+        kernel_type (str): The type of kernel to use: "default" or "composed".
         bias_dims (tuple): Dimensions for the bias terms.
         product_paths_sum (int): The number of non-zero elements in the Cayley table.
             - given by algebra.geometric_product_paths.sum().item()
@@ -125,6 +129,7 @@ class CSResNet(nn.Module):
     kernel_num_layers: int
     kernel_hidden_dim: int
     kernel_size: int
+    kernel_type: str
     bias_dims: tuple
     product_paths_sum: int
     blocks: tuple = (2, 2, 2, 2)
@@ -136,6 +141,7 @@ class CSResNet(nn.Module):
         self.conv_config = {
             "algebra": self.algebra,
             "kernel_size": 1,
+            "kernel_type": self.kernel_type,
             "bias_dims": self.bias_dims,
             "num_layers": self.kernel_num_layers,
             "hidden_dim": self.kernel_hidden_dim,
@@ -152,6 +158,7 @@ class CSResNet(nn.Module):
             "num_layers": self.kernel_num_layers,
             "hidden_dim": self.kernel_hidden_dim,
             "kernel_size": self.kernel_size,
+            "kernel_type": self.kernel_size,
             "bias_dims": self.bias_dims,
             "padding_mode": self.padding_mode,
         }
