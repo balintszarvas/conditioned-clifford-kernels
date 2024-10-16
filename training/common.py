@@ -70,6 +70,7 @@ def train_eval_pmap_fn(experiment: str):
     compute_losses = compute_losses_dict[experiment]
 
     @functools.partial(jax.pmap, axis_name="devices")
+    @jax.jit
     def train_step(
         state: train_state.TrainState,
         inputs: jnp.ndarray,
@@ -87,6 +88,7 @@ def train_eval_pmap_fn(experiment: str):
         return state, metrics
 
     @functools.partial(jax.pmap, axis_name="devices")
+    @jax.jit
     def eval_step(
         state: train_state.TrainState,
         inputs: jnp.ndarray,

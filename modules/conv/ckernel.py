@@ -7,7 +7,8 @@ from ..core.cayley import WeightedCayley
 from .shell import ScalarShell, compute_scalar_shell
 from .network import KernelNetwork
 from algebra.cliffordalgebra import CliffordAlgebra
-from .kernel import CliffordSteerableKernel
+from .kernel import CliffordSteerableKernel, generate_kernel_grid, get_init_factor
+
 
 def reshape_mv_tensor(algebra, tensor):
     A, B, *dims = tensor.shape
@@ -22,7 +23,7 @@ def reshape_back(algebra, tensor):
     return tensor.reshape(A,B,*dims)
 
 def _conv_kernel_11(k1, k2):
-    return jax.lax.conv(k1, k2, window_strides=(1,1), padding="SAME")
+    return jax.lax.conv(k1, k2, window_strides=(1, 1), padding="SAME")
 
 def _conv_kernel_14(k1, k2):
     return jax.vmap(_conv_kernel_11, in_axes=(0, 0))(k1, k2)
@@ -38,7 +39,8 @@ def conv_kernel(algebra, k1, k2):
 class ComposedCliffordSteerableKernel(nn.Module):
     """
     Extended Clifford-steerable kernel (see Section 3, Appendix A for details).
-    Convolves 2 kernels with different kernel sizes and combines them.
+    Convolves 2 kernels composing them into a single kernel.
+    Returns: Composed kernel of shape (c_out * algebra.n_blades, c_in * algebra.n_blades, X_1, ..., X_dim).
     """
     algebra: object
     c_in: int
@@ -68,13 +70,15 @@ class ComposedCliffordSteerableKernel(nn.Module):
     def __call__(self):
         """
         Evaluate the steerable implicit kernel.
+        Returns: Composed kernel of shape (c_out * algebra.n_blades, c_in * algebra.n_blades, X_1, ..., X_dim).
         """
-        
-        k1 = CliffordSteerableKernel(*self.kernel_params)()
 
+        # Generate individual kernels
+        k1 = CliffordSteerableKernel(*self.kernel_params)()
         k2 = CliffordSteerableKernel(*self.kernel_params)()
 
-
+        # Convolve the kernels to get the composed kernel
         k = conv_kernel(self.algebra, k1, k2)
+
 
         return k
