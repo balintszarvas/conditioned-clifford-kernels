@@ -4,7 +4,7 @@ from flax import linen as nn
 from jax.nn.initializers import ones
 
 from ..core.cayley import WeightedCayley
-from .shell import ScalarShell, compute_scalar_shell
+from .shell import ComposedScalarShell
 from .network import KernelNetwork
 from algebra.cliffordalgebra import CliffordAlgebra
 from .kernel import CliffordSteerableKernel, generate_kernel_grid, get_init_factor
@@ -74,11 +74,19 @@ class ComposedCliffordSteerableKernel(nn.Module):
         """
 
         # Generate individual kernels
-        k1 = CliffordSteerableKernel(*self.kernel_params)()
-        k2 = CliffordSteerableKernel(*self.kernel_params)()
+        k1, rel_pos, factor = CliffordSteerableKernel(*self.kernel_params)()
+        k2, _, _ = CliffordSteerableKernel(*self.kernel_params)()
 
         # Convolve the kernels to get the composed kernel
         k = conv_kernel(self.algebra, k1, k2)
 
+        # Compute the shell for the composed kernel
+        shell_comp = ComposedScalarShell(self.algebra, self.c_in, self.c_out)(rel_pos) #output shape: (N, c_out, c_in, 2**algebra.dim, 2**algebra.dim)
+        shell_comp = shell_comp.transpose(1, 2, 3, 4, 0).reshape(self.c_out * 2 ** self.algebra.dim, self.c_in * 2 ** self.algebra.dim, *(self.algebra.dim * [self.kernel_size]))
 
-        return k
+
+        # Apply the scalar shell to the composed kernel
+        K = k * shell_comp * factor
+
+
+        return K

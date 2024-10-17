@@ -130,4 +130,4 @@ class CliffordSteerableKernel(nn.Module):
             *(self.algebra.dim * [self.kernel_size])
         )
 
-        return K
+        return K, self.rel_pos, self.factor

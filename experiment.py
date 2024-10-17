@@ -14,7 +14,7 @@ from datasets.loader import create_data_loader
 
 CHKPT_DIR = "./checkpoints"
 flax.config.update("flax_use_orbax_checkpointing", True)
-jax.config.update("jax_enable_x64)", False)
+jax.config.update("jax_enable_x64", False)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", type=int, default=0)

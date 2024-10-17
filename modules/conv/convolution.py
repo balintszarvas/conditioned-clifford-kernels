@@ -88,7 +88,6 @@ class CliffordSteerableConv(nn.Module):
         # (N, c_in, X_1, ..., X_dim, 2**algebra.dim) -> (N, c_in * 2**algebra.dim, X_1, ..., X_dim)
         batch_size, input_channels = x.shape[0], self.c_in * self.algebra.n_blades
         spatial_dims = x.shape[-(self.algebra.dim + 1) : -1]
-        print("X shape before transpoising", x.shape)
         inputs = (
             jnp.transpose(x, (0, 1, 4, 2, 3))
             if self.algebra.dim == 2
