@@ -64,7 +64,7 @@ class CliffordSteerableConv(nn.Module):
                 product_paths_sum=self.product_paths_sum,
                 )()
         else:
-            kernel = CliffordSteerableKernel(
+            kernel, _, _, _ = CliffordSteerableKernel(
                 algebra=self.algebra,
                 c_in=self.c_in,
                 c_out=self.c_out,

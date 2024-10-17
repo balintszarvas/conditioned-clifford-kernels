@@ -12,7 +12,7 @@ from training.common import init_train_state, train_and_evaluate, test
 from datasets.preprocess import preprocess_fn
 from datasets.loader import create_data_loader
 
-CHKPT_DIR = "./checkpoints"
+CHKPT_DIR = "/content/drive/MyDrive/composed-exp/checkpoints"
 flax.config.update("flax_use_orbax_checkpointing", True)
 jax.config.update("jax_enable_x64", False)
 
