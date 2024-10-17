@@ -87,6 +87,7 @@ class ComposedCliffordSteerableKernel(nn.Module):
 
         # Apply the scalar shell to the composed kernel
         K = k * shell_comp * factor
-
+        
+        print("The shape of the composed kernel", K.shape)
 
         return K

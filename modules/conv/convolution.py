@@ -4,7 +4,7 @@ from flax import linen as nn
 from jax.nn.initializers import zeros
 
 from .kernel import CliffordSteerableKernel
-from .ckernel import reshape_mv_tensor, reshape_back, conv_kernel, ComposedCliffordSteerableKernel
+from .ckernel import ComposedCliffordSteerableKernel
 
 
 class CliffordSteerableConv(nn.Module):
