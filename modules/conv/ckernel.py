@@ -86,22 +86,22 @@ class ComposedCliffordSteerableKernel(nn.Module):
         )
 
 
-        # Shell head: partial weighted geometric product
-        #shell = jnp.einsum("noik,oiklm->olimn", shell, weighted_cayley)
+        #Shell head: partial weighted geometric product
+        shell = jnp.einsum("noik,oiklm->olimn", shell, weighted_cayley)
 
         # Reshape to final kernel
-        #shell = shell.reshape(
-        #    self.c_out * self.algebra.n_blades,
-        #    self.c_in * self.algebra.n_blades,
-        #    *(self.algebra.dim * [self.kernel_size])
-        #)
+        shell = shell.reshape(
+            self.c_out * self.algebra.n_blades,
+            self.c_in * self.algebra.n_blades,
+            *(self.algebra.dim * [self.kernel_size])
+        )
 
-        # Compute the shell for the composed kernel
-        shell_comp = ComposedScalarShell(self.algebra, self.c_in, self.c_out)(rel_pos) #output shape: (N, c_out, c_in, 2**algebra.dim, 2**algebra.dim)
-        shell_comp = shell_comp.transpose(1, 2, 3, 4, 0).reshape(self.c_out * 2 ** self.algebra.dim, self.c_in * 2 ** self.algebra.dim, *(self.algebra.dim * [self.kernel_size]))
+        #Compute the shell for the composed kernel
+        #shell = ComposedScalarShell(self.algebra, self.c_in, self.c_out)(rel_pos) #output shape: (N, c_out, c_in, 2**algebra.dim, 2**algebra.dim)
+        #shell = shell_comp.transpose(1, 2, 3, 4, 0).reshape(self.c_out * 2 ** self.algebra.dim, self.c_in * 2 ** self.algebra.dim, *(self.algebra.dim * [self.kernel_size]))
 
 
         # Apply the scalar shell to the composed kernel
-        K = k * shell_comp * factor
+        K = k * shell * factor
 
         return K

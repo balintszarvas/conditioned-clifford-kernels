@@ -182,11 +182,11 @@ class CSResNet(nn.Module):
         x = CliffordSteerableConv(
             c_in=in_channels, c_out=self.hidden_channels, **self.conv_config
         )(x)
-        x = MVGELU()(x)
-        x = CliffordSteerableConv(
-            c_in=self.hidden_channels, c_out=self.hidden_channels, **self.conv_config
-        )(x)
-        x = MVGELU()(x)
+        #x = MVGELU()(x)
+        #x = CliffordSteerableConv(
+        #    c_in=self.hidden_channels, c_out=self.hidden_channels, **self.conv_config
+        #)(x)
+        #x = MVGELU()(x)
 
         # Basic blocks
         for num_blocks in self.blocks:
@@ -194,11 +194,11 @@ class CSResNet(nn.Module):
                 x = CSBasicBlock(**self.block_config)(x)
 
         # Output convolutional layers
-        x = CliffordSteerableConv(
-            c_in=self.hidden_channels, c_out=self.hidden_channels, **self.conv_config
-        )(x)
-        x = MVGELU()(x)
-        x = CliffordSteerableConv(
-            c_in=self.hidden_channels, c_out=out_channels, **self.conv_config
-        )(x)
+        #x = CliffordSteerableConv(
+        #    c_in=self.hidden_channels, c_out=self.hidden_channels, **self.conv_config
+        #)(x)
+        #x = MVGELU()(x)
+        #x = CliffordSteerableConv(
+        #    c_in=self.hidden_channels, c_out=out_channels, **self.conv_config
+        #)(x)
         return x
