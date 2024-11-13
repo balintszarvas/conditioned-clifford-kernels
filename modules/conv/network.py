@@ -12,6 +12,7 @@ class KernelNetwork(nn.Module):
 
     Attributes:
         algebra (object): An instance of CliffordAlgebra defining the algebraic structure.
+        c_condition (int): The number of input channels plus the condition.
         c_in (int): The number of input channels.
         c_out (int): The number of output channels.
         num_layers (int): The number of layers in the network.
@@ -22,6 +23,7 @@ class KernelNetwork(nn.Module):
     """
 
     algebra: object
+    c_condition: int
     c_in: int
     c_out: int
     num_layers: int
@@ -35,19 +37,19 @@ class KernelNetwork(nn.Module):
         Kernel network evaluation (see Appendix A for details).
 
         Args:
-            x: The input multivector of shape (N, 1, 2**algebra.dim).
+            x: The input multivector of shape (P, c_in + c_condition, 2**algebra.dim).
 
         Returns:
-            The output multivector of shape (N, c_out * c_in, 2**algebra.dim).
+            The output multivector of shape (P, c_out * c_in, 2**algebra.dim).
         """
         x = FullyConnectedSteerableGeometricProductLayer(
             self.algebra,
-            1,
+            self.c_condition,
             self.hidden_dim,
             bias_dims=self.bias_dims,
             product_paths_sum=self.product_paths_sum,
         )(x)
-        x = GradeNorm(self.algebra)(x)
+        #x = GradeNorm(self.algebra)(x)
         x = MVGELU()(x)
 
         for _ in range(self.num_layers - 2):
@@ -58,7 +60,7 @@ class KernelNetwork(nn.Module):
                 bias_dims=self.bias_dims,
                 product_paths_sum=self.product_paths_sum,
             )(x)
-            x = GradeNorm(self.algebra)(x)
+            #x = GradeNorm(self.algebra)(x)
             x = MVGELU()(x)
 
         x = FullyConnectedSteerableGeometricProductLayer(

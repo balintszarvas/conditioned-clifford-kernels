@@ -8,7 +8,7 @@ from .ckernel import ComposedCliffordSteerableKernel
 from .condkernel import CondCliffordSteerableKernel
 
 def create_circular_mask(kernel_size, center=None, radius=None):
-    if center is None:
+    if center is None:  # use the middle of the image
         center = ((kernel_size-1)/2, (kernel_size-1)/2)
     if radius is None:
         radius = min(center[0], center[1], kernel_size-center[0], kernel_size-center[1])
@@ -18,8 +18,25 @@ def create_circular_mask(kernel_size, center=None, radius=None):
     mask = dist_from_center <= radius
     return mask.astype(float)
 
-def pool(x, circular_mask):
-    return (x * circular_mask[None, :, :, None]).mean((1, 2)) # pool the image into one vector; image has shape [C,X_1,X_2,n_blades] (no batch!)
+def pool(x, circular_mask, algebra):
+    """
+    Pools the input tensor x over spatial dimensions using the provided circular_mask.
+
+    Args:
+        x: Input tensor of shape [batch_size, c_in, *spatial_dims, n_blades]
+        circular_mask: Mask tensor of shape [kernel_size, ...] with spatial dimensions matching kernel size
+
+    Returns:
+        Pooled tensor of shape [batch_size, c_in, n_blades]
+    """
+    # Expand circular_mask to match spatial dimensions
+    mask = circular_mask[None, None, *([Ellipsis] + [None] * (x.ndim - 3)), None]  # Adds batch and channel dims
+
+    # Apply mask and pool over spatial dimensions
+    x_masked = x * mask
+    pooled = x_masked.mean(axis=tuple(range(2, 2 + algebra.dim)))  # Mean over spatial dimensions
+
+    return pooled
 
 
 class CliffordSteerableConv(nn.Module):
@@ -84,14 +101,10 @@ class CliffordSteerableConv(nn.Module):
                 )()
             
         elif self.kernel_type == "conditioned":
-            if x.shape[0] != 1:
-                raise ValueError("Conditioned kernel only works with batch size 1")
-
-            x_batchless = x[:,0] # remove batch dimension
-
-            condition = pool(x_batchless, self.circular_mask)
-
-            kernel = CondCliffordSteerableKernel(
+            print("shape of x", x.shape)
+            condition = pool(x, self.circular_mask)
+            print("condition shape", condition.shape)
+            kernel = CondCliffordSteerableKernel( # this doesn't take batches
                 algebra=self.algebra,
                 c_in=self.c_in,
                 c_out=self.c_out,
@@ -101,8 +114,7 @@ class CliffordSteerableConv(nn.Module):
                 bias_dims=self.bias_dims,
                 product_paths_sum=self.product_paths_sum,
                 )(condition)
-            
-        elif self.kernel_type == "default":
+        else:
             kernel, _, _, _ = CliffordSteerableKernel(
                 algebra=self.algebra,
                 c_in=self.c_in,
@@ -113,6 +125,8 @@ class CliffordSteerableConv(nn.Module):
                 bias_dims=self.bias_dims,
                 product_paths_sum=self.product_paths_sum,
                 )()
+            
+            print("shape of kernel in normal kernel", kernel.shape)
 
         # Initializing bias
         if self.bias:
@@ -147,26 +161,48 @@ class CliffordSteerableConv(nn.Module):
             )
         else:
             padding = "VALID"
+        
+        # Calculate the total number of kernel elements
+        kernel_elements = self.c_in * self.algebra.n_blades * (self.kernel_size ** self.algebra.dim)
 
-        # Convolution
-        output = jax.lax.conv(
+        # Reshape the kernel accordingly
+        kernel = kernel.reshape(
+            batch_size,
+            self.c_out * self.algebra.n_blades,
+            kernel_elements
+        )
+        
+        kernel = kernel.transpose(0, 2, 1)  # Shape: (batch_size, kernel_elements, c_out * n_blades)
+
+        # Extract patches
+        window_shape = (self.kernel_size,) * self.algebra.dim
+        window_strides = (self.stride,) * self.algebra.dim
+
+        patches = jax.lax.conv_general_dilated_patches( # shape: (batch_size, num_patches, c_in * n_blades * kernel_size**dim)
             inputs,
-            kernel,
-            window_strides=(self.stride,) * self.algebra.dim,
+            window_shape=window_shape,
+            window_strides=window_strides,
             padding=padding,
         )
 
-        # Reshaping back to multivector
+        # Convolution
+        output = jnp.einsum('bpi, bio -> bpo', patches, kernel) # shape: (batch_size, num_patches, c_out * n_blades)
+
+        # Compute output spatial dimensions
+        input_spatial_dims = inputs.shape[2:]
+        if padding == 'SAME':
+            output_spatial_dims = [dim_size // self.stride for dim_size in input_spatial_dims]
+        else:
+            output_spatial_dims = [
+                (dim_size - self.kernel_size) // self.stride + 1 for dim_size in input_spatial_dims
+            ]
+
+        # Reshape output to spatial dimensions
         output = output.reshape(
             batch_size,
+            *output_spatial_dims,
             self.c_out,
-            self.algebra.n_blades,
-            *output.shape[-self.algebra.dim :]
-        )
-        output = (
-            jnp.transpose(output, (0, 1, 3, 4, 2))
-            if self.algebra.dim == 2
-            else jnp.transpose(output, (0, 1, 3, 4, 5, 2))
+            self.algebra.n_blades
         )
 
         if self.bias:

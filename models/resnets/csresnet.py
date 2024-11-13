@@ -180,7 +180,7 @@ class CSResNet(nn.Module):
         out_channels = self.time_future if not self.make_channels else 1
 
         x = CliffordSteerableConv(
-            c_in=in_channels, c_out=self.hidden_channels, **self.conv_config
+            c_in=in_channels, c_out=out_channels, **self.conv_config
         )(x)
         #x = MVGELU()(x)
         #x = CliffordSteerableConv(
@@ -189,9 +189,9 @@ class CSResNet(nn.Module):
         #x = MVGELU()(x)
 
         # Basic blocks
-        for num_blocks in self.blocks:
-            for _ in range(num_blocks):
-                x = CSBasicBlock(**self.block_config)(x)
+        #for num_blocks in self.blocks:
+        #    for _ in range(num_blocks):
+        #        x = CSBasicBlock(**self.block_config)(x)
 
         # Output convolutional layers
         #x = CliffordSteerableConv(
