@@ -42,6 +42,7 @@ class KernelNetwork(nn.Module):
         Returns:
             The output multivector of shape (P, c_out * c_in, 2**algebra.dim).
         """
+        
         x = FullyConnectedSteerableGeometricProductLayer(
             self.algebra,
             self.c_condition,

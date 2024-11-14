@@ -53,7 +53,7 @@ data_args.add_argument("--time_future", type=int, default=1)
 kernel_args = parser.add_argument_group("Kernel Arguments")
 kernel_args.add_argument("--kernel_hidden_dim", type=int, default=12)
 kernel_args.add_argument("--kernel_num_layers", type=int, default=4)
-kernel_args.add_argument("--kernel_type", type=str, choices=["default", "composed"], default="default")
+kernel_args.add_argument("--kernel_type", type=str, choices=["default", "composed", "conditioned"], default="default")
 
 
 def main(args):

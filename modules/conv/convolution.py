@@ -87,7 +87,7 @@ class CliffordSteerableConv(nn.Module):
             if x.shape[0] != 1:
                 raise ValueError("Conditioned kernel only works with batch size 1")
 
-            x_batchless = x[:,0] # remove batch dimension
+            x_batchless = jnp.squeeze(x, axis=0)
 
             condition = pool(x_batchless, self.circular_mask)
 
