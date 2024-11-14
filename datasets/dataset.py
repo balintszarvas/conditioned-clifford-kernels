@@ -35,10 +35,11 @@ class TorchedDataset(Dataset):
         return self.preprocess_fn(x)
 
     def __getitem__(self, idx):
-        # Check if the data file exists, and raise IndexError if it doesn't
+        # Check if the data file exists, and return None if it doesn't
         data_path = os.path.join(self.datadir, f"{idx}.pt")
         if not os.path.exists(data_path):
-            raise IndexError(f"Data file {data_path} not found, skipping index {idx}.")
+            print(f"Warning: Data file {data_path} not found, skipping index {idx}.")
+            return None
 
         # Load data if the file exists
         data = torch.load(data_path)

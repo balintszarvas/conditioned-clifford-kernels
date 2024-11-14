@@ -101,9 +101,9 @@ class CliffordSteerableConv(nn.Module):
                 )()
             
         elif self.kernel_type == "conditioned":
-            print("shape of x", x.shape)
+            
             condition = pool(x, self.circular_mask)
-            print("condition shape", condition.shape)
+
             kernel = CondCliffordSteerableKernel( # this doesn't take batches
                 algebra=self.algebra,
                 c_in=self.c_in,

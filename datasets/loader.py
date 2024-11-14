@@ -6,7 +6,9 @@ from .dataset import TorchedDataset
 
 
 def numpy_collate(batch):
-    return jax.tree_util.tree_map(np.asarray, default_collate(batch))
+    # Filter out None values from the batch
+    filtered_batch = list(filter(lambda x: x is not None, batch))
+    return jax.tree_util.tree_map(np.asarray, default_collate(filtered_batch))
 
 
 class NumpyLoader(DataLoader):
