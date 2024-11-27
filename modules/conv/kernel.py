@@ -98,8 +98,6 @@ class CliffordSteerableKernel(nn.Module):
             self.rel_pos, 1
         )
 
-        print("X shape in normal clifrodsteerable", x.shape)
-
         # Evaluate kernel network
         k = KernelNetwork(
             self.algebra,

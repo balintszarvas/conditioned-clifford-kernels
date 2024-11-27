@@ -35,21 +35,14 @@ class TorchedDataset(Dataset):
         return self.preprocess_fn(x)
 
     def __getitem__(self, idx):
-        # Check if the data file exists, and return None if it doesn't
-        data_path = os.path.join(self.datadir, f"{idx}.pt")
-        if not os.path.exists(data_path):
-            print(f"Warning: Data file {data_path} not found, skipping index {idx}.")
-            return None
-
-        # Load data if the file exists
-        data = torch.load(data_path)
+        data = torch.load(os.path.join(self.datadir, f"{idx}.pt"))
         data = self.preprocess(data)
         start = torch.randint(
             0, data.shape[0] - self.time_history - self.time_future, (1,)
         ).item()
-        sample = data[start: start + self.time_history + self.time_future]
+        sample = data[start : start + self.time_history + self.time_future]
         x = sample[: self.time_history]
-        y = sample[self.time_history:]
+        y = sample[self.time_history :]
 
         if self.make_channels:
             x = x.unsqueeze(0)
