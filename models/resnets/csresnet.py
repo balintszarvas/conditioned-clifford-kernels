@@ -192,7 +192,7 @@ class CSResNet(nn.Module):
             Convolution = ConditionedCliffordSteerableConv
 
         x = Convolution(
-            c_in=in_channels, c_out=out_channels, **self.conv_config
+            c_in=in_channels, c_out=self.hidden_channels, **self.conv_config
         )(x)
         x = MVGELU()(x)
         x = Convolution(

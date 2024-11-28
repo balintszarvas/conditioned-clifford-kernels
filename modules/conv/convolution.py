@@ -304,6 +304,7 @@ class ConditionedCliffordSteerableConv(nn.Module):
             "c_in": self.c_in,
             "c_out": self.c_out,
             "kernel_size": self.kernel_size,
+            "mask_size": x.shape[-2],
             "num_layers": self.num_layers,
             "hidden_dim": self.hidden_dim,
             "bias_dims": self.bias_dims,
@@ -341,6 +342,7 @@ class BatchlessConditionedCliffordSteerableConv(nn.Module):
     c_in: int
     c_out: int
     kernel_size: int
+    mask_size: int
     bias_dims: tuple
     product_paths_sum: int
     num_layers: int
@@ -352,7 +354,7 @@ class BatchlessConditionedCliffordSteerableConv(nn.Module):
     
     def setup(self):
         """Set up circular mask for pooling"""
-        self.circular_mask = create_circular_mask(self.kernel_size)
+        self.circular_mask = create_circular_mask(self.mask_size)
 
     @nn.compact
     def __call__(self, x):
