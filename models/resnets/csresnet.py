@@ -33,6 +33,7 @@ class CSBasicBlock(nn.Module):
     num_layers: int
     hidden_dim: int
     kernel_size: int
+    kernel_type: str
     bias_dims: tuple
     stride: int = 1
     expansion: int = 1
@@ -162,6 +163,7 @@ class CSResNet(nn.Module):
             "num_layers": self.kernel_num_layers,
             "hidden_dim": self.kernel_hidden_dim,
             "kernel_size": self.kernel_size,
+            "kernel_type": self.kernel_type,
             "bias_dims": self.bias_dims,
             "padding_mode": self.padding_mode,
         }

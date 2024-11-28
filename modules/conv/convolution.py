@@ -359,9 +359,9 @@ class BatchlessConditionedCliffordSteerableConv(nn.Module):
         """
         Applies the convolution operation to a multivector input.
         Args:
-        x: The input multivector of shape (N, c_in, X_1, ..., X_dim, 2**algebra.dim).
+        x: The input multivector of shape (c_in, X_1, ..., X_dim, 2**algebra.dim).
         Returns:
-        The output multivector of shape (N, c_out, X_1, ..., X_dim, 2**algebra.dim).
+        The output multivector of shape (c_out, X_1, ..., X_dim, 2**algebra.dim).
         """
         # Initializing kernel
 
