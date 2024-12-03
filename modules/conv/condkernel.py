@@ -7,42 +7,12 @@ from ..core.cayley import WeightedCayley
 from .shell import ScalarShell, compute_scalar_shell
 from .network import KernelNetwork
 from algebra.cliffordalgebra import CliffordAlgebra
+from .kernel import CliffordSteerableKernel, generate_kernel_grid, get_init_factor
 
 
-def generate_kernel_grid(kernel_size, dim):
+class CondCliffordSteerableKernel(nn.Module):
     """
-    Generate the 2D or 3D grid for a given kernel size.
-
-    Args:
-        kernel_size (int): The size of the kernel.
-        dim (int): The dimension of the grid.
-
-    Returns:
-        jnp.ndarray: The grid of shape (kernel_size ** dim, dim) defined on the range [-1, 1]^dim.
-    """
-    axes = [jnp.arange(0, kernel_size) for _ in range(dim)]
-    grid = jnp.stack(jnp.meshgrid(*axes, indexing="ij"), axis=-1)
-    grid = grid - kernel_size // 2
-    return grid.reshape(-1, dim) / max(kernel_size // 2, 1.0)
-
-
-def get_init_factor(algebra, kernel_size):
-    """
-    Compute initial factor for the kernel (empirical).
-
-    Args:
-        algebra (object): An instance of CliffordAlgebra defining the algebraic structure.
-        kernel_size (int): The size of the kernel.
-
-    Returns:
-        float: The initial factor for the kernel.
-    """
-    return 20 / kernel_size ** (algebra.dim - 1)
-
-
-class CliffordSteerableKernel(nn.Module):
-    """
-    Clifford-steerable kernel (see Section 3, Appendix A for details). Pseudocode is given in Function 2.
+    Conditioned Clifford-steerable kernel (see Section 3, Appendix A for details).
     It consists of two components:
         1. A kernel network that generates a stack of c_in * c_out multivectors using an O(p,q)-equivariant CEGNN (Ruhe et al., 2023)
             k: R^p,q -> Cl^(c_out * c_in)
@@ -78,9 +48,12 @@ class CliffordSteerableKernel(nn.Module):
         self.rel_pos_sigma = self.param("rel_pos_sigma", ones, (1, 1, 1))
 
     @nn.compact
-    def __call__(self):
+    def __call__(self, condition):
         """
         Evaluate the steerable implicit kernel.
+
+        Inputs:
+            condition (jnp.ndarray): The condition multivector of shape (c_in, X_1, ..., X_dim, 2**algebra.dim).
 
         Returns:
             The output kernel of shape (c_out * algebra.n_blades, c_in * algebra.n_blades, X_1, ..., X_dim).
@@ -94,14 +67,17 @@ class CliffordSteerableKernel(nn.Module):
         scalar = compute_scalar_shell(self.algebra, self.rel_pos, self.rel_pos_sigma)
 
         # Embed scalar and vector into a multivector
-        x = self.algebra.embed_grade(scalar, 0) + self.algebra.embed_grade(
-            self.rel_pos, 1
-        )
+        x = self.algebra.embed_grade(scalar, 0) + self.algebra.embed_grade(self.rel_pos, 1) # [P,1,4]
+
+        # Broadcast condition and concatenate with relative positions
+        condition = jnp.repeat(condition[jnp.newaxis], len(self.rel_pos), axis=0) # [C,4] -> [P,C,4]
+
+        x = jnp.concatenate([x, condition], axis=1) # [P,1,4] x [P,C,4] -> [P,C+1,4]
 
         # Evaluate kernel network
         k = KernelNetwork(
             self.algebra,
-            self.c_in,
+            self.c_in + 1,
             self.c_in,
             self.c_out,
             self.num_layers,
@@ -131,4 +107,4 @@ class CliffordSteerableKernel(nn.Module):
             *(self.algebra.dim * [self.kernel_size])
         )
 
-        return K, self.rel_pos, self.factor, weighted_cayley
+        return K

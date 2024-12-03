@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import optax
 
 
 @jax.jit
@@ -59,4 +60,12 @@ def compute_losses_maxwell2d(inputs, targets):
 
     # only learn bivector components
     loss_total = jnp.mean((inputs[..., [4, 5, 6]] - targets[..., [4, 5, 6]]) ** 2)
+    return loss_total, {"loss_total": loss_total}
+
+@jax.jit
+def compute_losses_mnist(inputs, targets):
+    inputs = inputs.squeeze()
+    targets = targets.squeeze()
+
+    loss_total = jnp.mean(optax.softmax_cross_entropy_with_integer_labels(logits=inputs, labels=targets))
     return loss_total, {"loss_total": loss_total}

@@ -12,8 +12,9 @@ from training.common import init_train_state, train_and_evaluate, test
 from datasets.preprocess import preprocess_fn
 from datasets.loader import create_data_loader
 
-CHKPT_DIR = "./checkpoints"
+CHKPT_DIR = "/content/drive/MyDrive/composed-exp/checkpoints"
 flax.config.update("flax_use_orbax_checkpointing", True)
+jax.config.update("jax_enable_x64", False)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", type=int, default=0)
@@ -52,6 +53,7 @@ data_args.add_argument("--time_future", type=int, default=1)
 kernel_args = parser.add_argument_group("Kernel Arguments")
 kernel_args.add_argument("--kernel_hidden_dim", type=int, default=12)
 kernel_args.add_argument("--kernel_num_layers", type=int, default=4)
+kernel_args.add_argument("--kernel_type", type=str, choices=["default", "composed", "conditioned"], default="default")
 
 
 def main(args):
@@ -115,6 +117,7 @@ def main(args):
                 kernel_num_layers=args.kernel_num_layers,
                 kernel_hidden_dim=args.kernel_hidden_dim,
                 kernel_size=args.kernel_size,
+                kernel_type=args.kernel_type,
                 bias_dims=args.bias_dims,
                 product_paths_sum=algebra.geometric_product_paths_sum,
                 make_channels=make_channels,

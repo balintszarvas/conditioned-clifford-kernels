@@ -1,0 +1,8 @@
+#Ignore pychache files
+__pycache__/
+
+#Ignore wandb files
+wandb/
+
+#Ignore data folders
+data/

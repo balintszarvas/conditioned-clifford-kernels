@@ -1,7 +1,7 @@
 from flax import linen as nn
 
-from modules.conv.convolution import CliffordSteerableConv, ComposedCliffordSteerableConv, ConditionedCliffordSteerableConv
-from modules.core.norm import MVLayerNorm
+from modules.conv.convolution import CliffordSteerableConv
+from modules.core.norm import MVLayerNorm, GradeNorm
 from modules.core.mvgelu import MVGELU
 
 
@@ -19,7 +19,6 @@ class CSBasicBlock(nn.Module):
         num_layers (int): The number of layers in the network.
         hidden_dim (int): The number of features in the hidden layers.
         kernel_size (int): The size of the kernel.
-        kernel_type (str): The type of kernel to use: "default" or "composed".
         bias_dims (tuple): Dimensions for the bias terms.
         stride (int): The stride of the convolution.
         expansion (int): The expansion factor for the number of channels.
@@ -33,7 +32,6 @@ class CSBasicBlock(nn.Module):
     num_layers: int
     hidden_dim: int
     kernel_size: int
-    kernel_type: str
     bias_dims: tuple
     stride: int = 1
     expansion: int = 1
@@ -61,14 +59,7 @@ class CSBasicBlock(nn.Module):
             "padding_mode": self.padding_mode,
         }
 
-        if self.kernel_type == "default":
-            Convolution = CliffordSteerableConv
-        elif self.kernel_type == "composed":
-            Convolution = ComposedCliffordSteerableConv
-        elif self.kernel_type == "conditioned":
-            Convolution = ConditionedCliffordSteerableConv
-
-        out = Convolution(
+        out = CliffordSteerableConv(
             c_in=self.in_channels,
             c_out=self.channels,
             stride=self.stride,
@@ -78,7 +69,7 @@ class CSBasicBlock(nn.Module):
         out = MVLayerNorm(self.algebra)(out) if self.norm else out
         out = MVGELU()(out)
 
-        out = Convolution(
+        out = CliffordSteerableConv(
             c_in=self.channels,
             c_out=self.channels,
             stride=self.stride,
@@ -90,7 +81,7 @@ class CSBasicBlock(nn.Module):
 
         # shortcut connection
         if self.stride != 1 or self.in_channels != self.expansion * self.channels:
-            x = Convolution(
+            x = CliffordSteerableConv(
                 c_in=self.in_channels,
                 c_out=self.expansion * self.channels,
                 stride=self.stride,
@@ -105,21 +96,21 @@ class CSBasicBlock(nn.Module):
         return out
 
 
-class CSResNet(nn.Module):
+class CSResNetMnist(nn.Module):
     """
-    Clifford-steerable ResNet-based neural solver.
-    It takes a stack of fields for multiple time steps and predicts the fields for future time steps.
+    Clifford-steerable ResNet-based CLassifier.
+    It takes a stack of MNIST.
 
     Attributes:
         algebra (object): An instance of CliffordAlgebra defining the algebraic structure.
-        time_history (int): The number of input channels.
-        time_future (int): The number of output channels.
+        c_in (int): The number of input channels.
+        c_out (int): The number of output channels.
         hidden_channels (int): The number of hidden channels.
         kernel_num_layers (int): The number of layers in the network.
         kernel_hidden_dim (int): The number of features in the hidden layers.
         kernel_size (int): The size of the kernel.
-        kernel_type (str): The type of kernel to use: "default" or "composed".
         bias_dims (tuple): Dimensions for the bias terms.
+        out_features (int): The number of output features.
         product_paths_sum (int): The number of non-zero elements in the Cayley table.
             - given by algebra.geometric_product_paths.sum().item()
         blocks (tuple): The number of blocks in the network.
@@ -129,13 +120,12 @@ class CSResNet(nn.Module):
     """
 
     algebra: object
-    time_history: int
-    time_future: int
+    c_in: int
+    c_out: int
     hidden_channels: int
     kernel_num_layers: int
     kernel_hidden_dim: int
     kernel_size: int
-    kernel_type: str
     bias_dims: tuple
     product_paths_sum: int
     blocks: tuple = (2, 2, 2, 2)
@@ -163,7 +153,6 @@ class CSResNet(nn.Module):
             "num_layers": self.kernel_num_layers,
             "hidden_dim": self.kernel_hidden_dim,
             "kernel_size": self.kernel_size,
-            "kernel_type": self.kernel_type,
             "bias_dims": self.bias_dims,
             "padding_mode": self.padding_mode,
         }
@@ -172,7 +161,7 @@ class CSResNet(nn.Module):
     def __call__(self, x):
         """
         Forward pass of the model.
-            x -> 2 1x1 convolutions -> N basic blocks -> 2 1x1 convolutions -> out
+            x -> 2 1x1 convolutions -> N basic blocks -> 2 1x1 convolutions -> norm -> dense -> out
 
         Args:
             x: The input multivector of shape (N, time_history, X_1, ..., X_dim, 2**algebra.dim).
@@ -181,21 +170,14 @@ class CSResNet(nn.Module):
             The output multivector of shape (N, time_future, X_1, ..., X_dim, 2**algebra.dim).
         """
         # Embedding convolutional layers
-        in_channels = self.time_history if not self.make_channels else 1
-        out_channels = self.time_future if not self.make_channels else 1
+        in_channels = self.c_in if not self.make_channels else 1
+        out_channels = self.c_out if not self.make_channels else 1
 
-        if self.kernel_type == "default":
-            Convolution = CliffordSteerableConv
-        elif self.kernel_type == "composed":
-            Convolution = ComposedCliffordSteerableConv
-        elif self.kernel_type == "conditioned":
-            Convolution = ConditionedCliffordSteerableConv
-
-        x = Convolution(
+        x = CliffordSteerableConv(
             c_in=in_channels, c_out=self.hidden_channels, **self.conv_config
         )(x)
         x = MVGELU()(x)
-        x = Convolution(
+        x = CliffordSteerableConv(
             c_in=self.hidden_channels, c_out=self.hidden_channels, **self.conv_config
         )(x)
         x = MVGELU()(x)
@@ -206,11 +188,18 @@ class CSResNet(nn.Module):
                 x = CSBasicBlock(**self.block_config)(x)
 
         # Output convolutional layers
-        x = Convolution(
+        x = CliffordSteerableConv(
             c_in=self.hidden_channels, c_out=self.hidden_channels, **self.conv_config
         )(x)
         x = MVGELU()(x)
-        x = Convolution(
+        x = CliffordSteerableConv(
             c_in=self.hidden_channels, c_out=out_channels, **self.conv_config
         )(x)
+
+        #Classifying layer
+        x = GradeNorm(self.algebra)(x)
+
+        x = x.reshape(x.shape[0], -1)
+    
+        x = nn.Dense(features=self.out_features)(x)
         return x
