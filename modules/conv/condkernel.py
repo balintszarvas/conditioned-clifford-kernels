@@ -100,11 +100,12 @@ class CondCliffordSteerableKernel(nn.Module):
         # Kernel head: partial weighted geometric product
         K = jnp.einsum("noik,oiklm->olimn", k, weighted_cayley)
 
-        # Reshape to final kernel
+        # Handle N-dimensional reshaping
+        spatial_dims = self.algebra.dim * [self.kernel_size]
         K = K.reshape(
             self.c_out * self.algebra.n_blades,
             self.c_in * self.algebra.n_blades,
-            *(self.algebra.dim * [self.kernel_size])
+            *spatial_dims
         )
 
         return K

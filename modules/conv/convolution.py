@@ -298,7 +298,6 @@ class ConditionedCliffordSteerableConv(nn.Module):
         Returns:
         The output multivector of shape (N, c_out, X_1, ..., X_dim, 2**algebra.dim).
         """
-
         conv_config = {
             "algebra": self.algebra,
             "c_in": self.c_in,
@@ -353,7 +352,9 @@ class BatchlessConditionedCliffordSteerableConv(nn.Module):
     padding_mode: str = "SAME"
     
     def setup(self):
-        """Set up circular mask for pooling"""
+        """
+        Creates the circular mask for the condition.
+        """
         self.circular_mask = create_circular_mask(self.mask_size)
 
     @nn.compact
@@ -365,9 +366,11 @@ class BatchlessConditionedCliffordSteerableConv(nn.Module):
         Returns:
         The output multivector of shape (c_out, X_1, ..., X_dim, 2**algebra.dim).
         """
-        # Initializing kernel
 
+        #Obtaining condition
         condition = pool(x, self.circular_mask)
+
+        # Initializing kernel
 
         kernel = CondCliffordSteerableKernel(
                 algebra=self.algebra,
