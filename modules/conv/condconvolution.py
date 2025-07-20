@@ -1,10 +1,17 @@
+#
+#
+#THIS IS A TRIAL FOR HANDLING BATCHES IN THE CONDITIONED CONVOLUTION, NOT IMPLEMENTABLE YET
+#
+#
+
+
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
 from jax.nn.initializers import zeros
 
 from .kernel import CliffordSteerableKernel
-from .ckernel import ComposedCliffordSteerableKernel
+from .composedkernel import ComposedCliffordSteerableKernel
 from .condkernel import CondCliffordSteerableKernel
 
 def create_circular_mask(kernel_size, center=None, radius=None):
@@ -125,8 +132,6 @@ class CliffordSteerableConv(nn.Module):
                 bias_dims=self.bias_dims,
                 product_paths_sum=self.product_paths_sum,
                 )()
-            
-            print("shape of kernel in normal kernel", kernel.shape)
 
         # Initializing bias
         if self.bias:

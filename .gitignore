@@ -6,3 +6,14 @@ wandb/
 
 #Ignore data folders
 data/
+
+#Ignore DS_Store files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+#Ignore .env files
+.env
+datasets/.DS_Store

@@ -1,4 +1,6 @@
 from flax import linen as nn
+import jax.numpy as jnp
+import jax
 
 from modules.conv.convolution import CliffordSteerableConv, ComposedCliffordSteerableConv, ConditionedCliffordSteerableConv
 from modules.core.norm import MVLayerNorm
@@ -33,6 +35,7 @@ class CSBasicBlock(nn.Module):
     num_layers: int
     hidden_dim: int
     kernel_size: int
+    mask_size: int
     kernel_type: str
     bias_dims: tuple
     stride: int = 1
@@ -56,6 +59,7 @@ class CSBasicBlock(nn.Module):
             "num_layers": self.num_layers,
             "hidden_dim": self.hidden_dim,
             "kernel_size": self.kernel_size,
+            "mask_size": self.mask_size,
             "bias_dims": self.bias_dims,
             "product_paths_sum": self.product_paths_sum,
             "padding_mode": self.padding_mode,
@@ -183,6 +187,10 @@ class CSResNet(nn.Module):
         # Embedding convolutional layers
         in_channels = self.time_history if not self.make_channels else 1
         out_channels = self.time_future if not self.make_channels else 1
+        if self.algebra.dim == 2:
+            mask_size = 64
+        elif self.algebra.dim == 3:
+            mask_size = 32
 
         if self.kernel_type == "default":
             Convolution = CliffordSteerableConv
@@ -192,25 +200,25 @@ class CSResNet(nn.Module):
             Convolution = ConditionedCliffordSteerableConv
 
         x = Convolution(
-            c_in=in_channels, c_out=self.hidden_channels, **self.conv_config
+            c_in=in_channels, c_out=self.hidden_channels, mask_size=mask_size,  **self.conv_config
         )(x)
         x = MVGELU()(x)
         x = Convolution(
-            c_in=self.hidden_channels, c_out=self.hidden_channels, **self.conv_config
+            c_in=self.hidden_channels, c_out=self.hidden_channels, mask_size=mask_size, **self.conv_config
         )(x)
         x = MVGELU()(x)
 
         # Basic blocks
         for num_blocks in self.blocks:
             for _ in range(num_blocks):
-                x = CSBasicBlock(**self.block_config)(x)
+                x = CSBasicBlock(mask_size=mask_size, **self.block_config)(x)
 
         # Output convolutional layers
         x = Convolution(
-            c_in=self.hidden_channels, c_out=self.hidden_channels, **self.conv_config
+            c_in=self.hidden_channels, c_out=self.hidden_channels, mask_size=mask_size,  **self.conv_config
         )(x)
         x = MVGELU()(x)
         x = Convolution(
-            c_in=self.hidden_channels, c_out=out_channels, **self.conv_config
+            c_in=self.hidden_channels, c_out=out_channels, mask_size=mask_size, **self.conv_config
         )(x)
         return x

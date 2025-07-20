@@ -59,7 +59,8 @@ def compute_losses_maxwell2d(inputs, targets):
     ), f"inputs.shape = {inputs.shape}, targets.shape = {targets.shape}"
 
     # only learn bivector components
-    loss_total = jnp.mean((inputs[..., [4, 5, 6]] - targets[..., [4, 5, 6]]) ** 2)
+    difference = inputs[..., [4, 5, 6]] - targets[..., [4, 5, 6]]
+    loss_total = jnp.mean(difference ** 2)
     return loss_total, {"loss_total": loss_total}
 
 @jax.jit
