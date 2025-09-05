@@ -11,30 +11,56 @@ from .kernel import CliffordSteerableKernel, generate_kernel_grid, get_init_fact
 
 
 def reshape_mv_tensor(algebra, tensor):
+    """Reshape multivector tensor to handle both 2D and 3D cases"""
     A, B, *dims = tensor.shape
     M = A // algebra.n_blades
     N = B // algebra.n_blades
-    return tensor.reshape(M,algebra.n_blades,N,algebra.n_blades,*dims)
+    return tensor.reshape(M, algebra.n_blades, N, algebra.n_blades, *dims)
 
 def reshape_back(algebra, tensor):
+    """Reshape back to original format, handling both 2D and 3D cases"""
     M, _, N, _, *dims = tensor.shape
     A = M * algebra.n_blades
     B = N * algebra.n_blades
-    return tensor.reshape(A,B,*dims)
+    return tensor.reshape(A, B, *dims)
 
-def _conv_kernel_11(k1, k2):
-    return jax.lax.conv(k1, k2, window_strides=(1, 1), padding="SAME")
-
-def _conv_kernel_14(k1, k2):
-    return jax.vmap(_conv_kernel_11, in_axes=(0, 0))(k1, k2)
-
+def _conv_kernel(k1, k2, dim):
+    """Base convolution for a single pair of inputs"""
+    if dim == 2:
+        return jax.lax.conv(k1, k2, window_strides=(1, 1), padding="SAME")
+    elif dim == 3:
+        return jax.lax.conv(k1, k2, window_strides=(1, 1, 1), padding="SAME")
+    else:
+        raise ValueError(f"Unsupported dimension: {dim}")
+    
 def conv_kernel(algebra, k1, k2):
-    k1 = reshape_mv_tensor(algebra, k1).transpose(0, 2, 1, 3, 4, 5)
-    k2 = reshape_mv_tensor(algebra, k2).transpose(0, 2, 1, 3, 4, 5)
-    k = jax.vmap(_conv_kernel_14, in_axes=(0, 0))(k1, k2)
-    k = k.transpose(0, 2, 1, 3, 4, 5)
-    k = reshape_back(algebra, k)
-    return k
+    """Dimension-agnostic kernel convolution"""
+    # Reshape tensors for both 2D and 3D
+    k1 = reshape_mv_tensor(algebra, k1)
+    k2 = reshape_mv_tensor(algebra, k2)
+    
+    # Handle different dimension permutations
+    if algebra.dim == 2:
+        k1 = k1.transpose(0, 2, 1, 3, 4, 5)
+        k2 = k2.transpose(0, 2, 1, 3, 4, 5)
+    elif algebra.dim == 3:
+        k1 = k1.transpose(0, 2, 1, 3, 4, 5, 6)
+        k2 = k2.transpose(0, 2, 1, 3, 4, 5, 6)
+    else:
+        raise ValueError(f"Unsupported algebra dimension: {algebra.dim}")
+
+    # Vectorized convolution
+    k = jax.vmap(jax.vmap(_conv_kernel, in_axes=(0, 0)), in_axes=(0, 0))(
+        k1, k2, algebra.dim
+    )
+
+    # Transpose back
+    if algebra.dim == 2:
+        k = k.transpose(0, 2, 1, 3, 4, 5)
+    elif algebra.dim == 3:
+        k = k.transpose(0, 2, 1, 3, 4, 5, 6)
+
+    return reshape_back(algebra, k)
 
 class ComposedCliffordSteerableKernel(nn.Module):
     """
@@ -80,26 +106,21 @@ class ComposedCliffordSteerableKernel(nn.Module):
         # Convolve the kernels to get the composed kernel
         k = conv_kernel(self.algebra, k1, k2)
 
-        # Compute kernel mask
-        #shell = ScalarShell(self.algebra, self.c_in, self.c_out)(rel_pos).reshape(
-        #    -1, self.c_out, self.c_in, 2**self.algebra.dim
-        #)
-
-
-        #Shell head: partial weighted geometric product
-        #shell = jnp.einsum("noik,oiklm->olimn", shell, weighted_cayley)
-
-        # Reshape to final kernel
-        #shell = shell.reshape(
-        #    self.c_out * self.algebra.n_blades,
-        #    self.c_in * self.algebra.n_blades,
-        #    *(self.algebra.dim * [self.kernel_size])
-        #)
-
         #Compute the shell for the composed kernel
         shell = ComposedScalarShell(self.algebra, self.c_in, self.c_out)(rel_pos) #output shape: (N, c_out, c_in, 2**algebra.dim, 2**algebra.dim)
-        shell = shell.transpose(1, 2, 3, 4, 0).reshape(self.c_out * 2 ** self.algebra.dim, self.c_in * 2 ** self.algebra.dim, *(self.algebra.dim * [self.kernel_size]))
+        if self.algebra.dim == 2:
+            shell = shell.transpose(1, 2, 3, 4, 0)
+        elif self.algebra.dim == 3:
+            shell = shell.transpose(1, 2, 3, 4, 5, 0)
+        else:
+            raise ValueError(f"Unsupported algebra dimension: {self.algebra.dim}")
 
+        # Reshape shell
+        shell = shell.reshape(
+            self.c_out * self.algebra.n_blades,
+            self.c_in * self.algebra.n_blades,
+            *(self.algebra.dim * [self.kernel_size])
+        )
 
         # Apply the scalar shell to the composed kernel
         K = k * shell * factor

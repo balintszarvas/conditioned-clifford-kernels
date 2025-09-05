@@ -8,6 +8,7 @@ from .shell import ScalarShell, compute_scalar_shell
 from .network import KernelNetwork
 from algebra.cliffordalgebra import CliffordAlgebra
 from .kernel import CliffordSteerableKernel, generate_kernel_grid, get_init_factor
+from modules.core.norm import ConditionGradeNorm, MVLayerNorm
 
 
 class CondCliffordSteerableKernel(nn.Module):
@@ -46,6 +47,7 @@ class CondCliffordSteerableKernel(nn.Module):
         ]
         self.factor = get_init_factor(self.algebra, self.kernel_size)
         self.rel_pos_sigma = self.param("rel_pos_sigma", ones, (1, 1, 1))
+        self.num_points = len(self.rel_pos)
 
     @nn.compact
     def __call__(self, condition):
@@ -53,7 +55,7 @@ class CondCliffordSteerableKernel(nn.Module):
         Evaluate the steerable implicit kernel.
 
         Inputs:
-            condition (jnp.ndarray): The condition multivector of shape (c_in, X_1, ..., X_dim, 2**algebra.dim).
+            condition (jnp.ndarray): The condition multivector of shape (c_in, 2**algebra.dim).
 
         Returns:
             The output kernel of shape (c_out * algebra.n_blades, c_in * algebra.n_blades, X_1, ..., X_dim).
@@ -67,10 +69,16 @@ class CondCliffordSteerableKernel(nn.Module):
         scalar = compute_scalar_shell(self.algebra, self.rel_pos, self.rel_pos_sigma)
 
         # Embed scalar and vector into a multivector
-        x = self.algebra.embed_grade(scalar, 0) + self.algebra.embed_grade(self.rel_pos, 1) # [P,1,4]
+        x = self.algebra.embed_grade(scalar, 0) + self.algebra.embed_grade(self.rel_pos, 1) # [kernel_size**dim,1,4]
 
-        # Broadcast condition and concatenate with relative positions
-        condition = jnp.repeat(condition[jnp.newaxis], len(self.rel_pos), axis=0) # [C,4] -> [P,C,4]
+        # Broadcast and concatenate with relative positions
+        condition = jnp.repeat(condition[jnp.newaxis], x.shape[0], axis=0) # [C,4] -> [P,C,4]
+
+        # TODO: THIS IS ME TRYING TO NORMALISE THE CONDITION SO THAT THE VALUES DON'T EXPLODE TO NAN IN THE 2D MAXWELL SIM. 
+        # Compute grade-wise norms of the vector grade of rel_pos (one norm per subspace)
+        #relpos_norms_list = self.algebra.norms(x)  # list length n_subspaces, each (P,1,1)
+        #relpos_norm = jnp.concatenate(relpos_norms_list, axis=-1).squeeze(1)  # (P, n_subspaces)
+        #condition = ConditionGradeNorm(self.algebra)(condition, relpos_norm)
 
         x = jnp.concatenate([x, condition], axis=1) # [P,1,4] x [P,C,4] -> [P,C+1,4]
 

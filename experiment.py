@@ -5,14 +5,22 @@ import torch
 import optax
 import argparse
 import orbax.checkpoint
-
+import os
+from jax import profiler
 from algebra.cliffordalgebra import CliffordAlgebra
 from models.resnets import ResNet, CSResNet
 from training.common import init_train_state, train_and_evaluate, test
 from datasets.preprocess import preprocess_fn
 from datasets.loader import create_data_loader
 
-CHKPT_DIR = "/content/drive/MyDrive/composed-exp/checkpoints"
+# Print GPU info
+print("CUDA_VISIBLE_DEVICES:", os.environ.get('CUDA_VISIBLE_DEVICES'))
+print("Number of devices:", jax.device_count())
+print("Devices:", jax.devices())
+
+CHKPT_DIR = "/gpfs/home5/bszarvas/clifford/clifford-group-equivariant-cnns/checkpoints"
+profile_dir = "/home/bszarvas/clifford/clifford-group-equivariant-cnns/profiles"
+os.makedirs(profile_dir, exist_ok=True)
 flax.config.update("flax_use_orbax_checkpointing", True)
 jax.config.update("jax_enable_x64", False)
 
@@ -39,7 +47,8 @@ train_args = parser.add_argument_group("Training Arguments")
 train_args.add_argument("--batch_size", type=int, default=8)
 train_args.add_argument("--learning_rate", type=float, default=1e-3)
 train_args.add_argument("--weight_decay", type=float, default=0.0)
-train_args.add_argument("--num_epochs", type=int, default=1000)
+train_args.add_argument("--start_step", type=int, default=0)
+train_args.add_argument("--num_epochs", type=int, default=1500)
 train_args.add_argument("--grad_accumulation_steps", type=int, default=1)
 train_args.add_argument("--grad_norm_clip", type=float, default=1.0)
 train_args.add_argument("--scheduler", type=str, default="none")
@@ -61,7 +70,7 @@ def main(args):
         wandb.init(
             project="clifford-equivariant-cnns",
             id=args.wandb_id,
-            resume=True,
+            resume="allow",
             allow_val_change=True,
         )
         wandb.config.update(args, allow_val_change=True)
@@ -177,22 +186,22 @@ def main(args):
     print(f"Initialized {args.model} with {num_params} parameters. Loading data...")
 
     if args.experiment == "ns":
-        train_path = "datasets/data/ns/train/"
-        valid_path = "datasets/data/ns/valid/"
-        test_path = "datasets/data/ns/test/"
+        train_path = "/scratch-shared/tmp.8yvUvjMouS/datasets/data/ns/train/"
+        valid_path = "/scratch-shared/tmp.8yvUvjMouS/datasets/data/ns/valid/"
+        test_path = "/scratch-shared/tmp.8yvUvjMouS/datasets/data/ns/test/"
     elif args.experiment == "maxwell3d":
-        train_path = "datasets/data/maxwell3d/train/"
-        valid_path = "datasets/data/maxwell3d/valid/"
-        test_path = "datasets/data/maxwell3d/test/"
+        train_path = "/scratch-shared/tmp.8yvUvjMouS/datasets/maxwell3d/train/"
+        valid_path = "/scratch-shared/tmp.8yvUvjMouS/datasets/maxwell3d/valid/"
+        test_path = "/scratch-shared/tmp.8yvUvjMouS/datasets/maxwell3d/test/"
     elif args.experiment == "maxwell2d":
-        train_path = "datasets/data/maxwell2d/train/"
-        valid_path = "datasets/data/maxwell2d/valid/"
-        test_path = "datasets/data/maxwell2d/test/"
+        train_path = "/scratch-shared/tmp.8yvUvjMouS/datasets/maxwell2d/train/"
+        valid_path = "/scratch-shared/tmp.8yvUvjMouS/datasets/maxwell2d/valid/"
+        test_path = "/scratch-shared/tmp.8yvUvjMouS/datasets/maxwell2d/test/"
     else:
         raise ValueError("Experiment not supported.")
 
     batch_size = args.batch_size * jax.device_count()
-    num_workers = 0
+    num_workers = 8
 
     training_loader = create_data_loader(
         num_data=args.num_data,
@@ -262,12 +271,13 @@ def main(args):
             args.grad_norm_clip,
             checkpoint_manager,
         )
-
+    #profiler.start_trace(profile_dir, create_perfetto_trace=True)
     _ = train_and_evaluate(
         rng,
         training_loader,
         valid_loader,
         state,
+        start_step=args.start_step,
         epochs=args.num_epochs,
         experiment=args.experiment,
         metric_accumulation_steps=args.metric_accumulation_steps,
@@ -289,7 +299,9 @@ def main(args):
         )
         test(rng, test_loader, best_state, args.experiment)
 
+
     wandb.finish()
+    #profiler.stop_trace()
 
 
 if __name__ == "__main__":

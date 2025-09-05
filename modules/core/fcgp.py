@@ -66,12 +66,15 @@ class FullyConnectedSteerableGeometricProductLayer(nn.Module):
 
         if self.include_first_order:
             # Adding the linear term
-            out += MVLinear(
+            out_first_order = MVLinear(
                 self.algebra,
                 self.in_features,
                 self.out_features,
                 bias_dims=self.bias_dims,
             )(input)
+
+            out += out_first_order
+
             out = out / jnp.sqrt(2)
 
         return out

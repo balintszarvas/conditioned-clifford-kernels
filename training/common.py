@@ -6,6 +6,7 @@ import jax.numpy as jnp
 import flax
 import optax
 from flax.training import train_state
+from time import perf_counter as prf
 
 from .losses import (
     compute_losses_ns,
@@ -78,10 +79,13 @@ def train_eval_pmap_fn(experiment: str):
     ):
 
         def loss_fn(params, inputs, targets):
+            #start_step = prf()
             outputs = state.apply_fn({"params": params}, inputs)
+            #forward_end = prf()
+            #print("Forward pass time:", (forward_end-start_step))
             loss, metrics = compute_losses(inputs=outputs, targets=targets)
-            return loss, metrics
-
+            #print("Loss computation train:", (prf()-forward_end))
+            return loss, metrics 
         gradient_fn = jax.value_and_grad(loss_fn, has_aux=True)
         (_, metrics), grads = gradient_fn(state.params, inputs, targets)
         state = state.apply_gradients(grads=grads)
@@ -116,6 +120,7 @@ def train_and_evaluate(
     train_loader,
     valid_loader,
     state: train_state.TrainState,
+    start_step: int,
     epochs: int,
     experiment: str,
     metric_accumulation_steps: int = 1,
@@ -131,10 +136,10 @@ def train_and_evaluate(
     state = flax.jax_utils.replicate(state)
     train_batch_metrics = []
     valid_batch_metrics = []
-
     best_valid_loss_total = float("inf")
-    pbar = tqdm.tqdm(range(1, epochs + 1))
+    pbar = tqdm.tqdm(range(1, epochs + 1 - start_step))
     for epoch in pbar:
+        current_step= start_step+epoch
         ### Training ###
         for inputs, targets in train_loader:
             # replicate each element of the batch tuple
@@ -148,11 +153,12 @@ def train_and_evaluate(
         for inputs, targets in valid_loader:
             inputs = shard(inputs)
             targets = shard(targets)
+            
             metrics = eval_step(state, inputs, targets)
             metrics = unreplicate_metrics(metrics)
             valid_batch_metrics.append(metrics)
 
-        if epoch % metric_accumulation_steps == 0:
+        if current_step % metric_accumulation_steps == 0:
             train_batch_metrics = accumulate_metrics(train_batch_metrics)
             valid_batch_metrics = accumulate_metrics(valid_batch_metrics)
 
@@ -163,7 +169,7 @@ def train_and_evaluate(
                         "train": train_batch_metrics,
                         "valid": valid_batch_metrics,
                     },
-                    step=epoch,
+                    step=current_step,
                 )
 
             # print(f"Epoch {epoch}, ")
@@ -177,10 +183,10 @@ def train_and_evaluate(
                 best_state = flax.jax_utils.unreplicate(state)
                 if checkpoint_manager is not None:
                     print(
-                        f"Saving checkpoint, epoch {epoch}, valid loss total: {valid_loss_total:.5f}"
+                        f"Saving checkpoint, epoch {current_step}, valid loss total: {valid_loss_total:.5f}"
                     )
                     checkpoint_manager.save(
-                        epoch,
+                        current_step,
                         items={
                             "model": best_state,
                         },
@@ -191,7 +197,7 @@ def train_and_evaluate(
             valid_batch_metrics = []
 
         ### Testing ###
-        if epoch % test_interval == 0 and test_loader is not None:
+        if current_step % test_interval == 0 and test_loader is not None:
             test(key, test_loader, best_state, experiment)
 
     state = flax.jax_utils.unreplicate(state)
