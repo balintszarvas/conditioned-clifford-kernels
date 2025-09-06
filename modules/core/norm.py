@@ -51,7 +51,7 @@ class GradeNorm(nn.Module):
             output (jnp.ndarray): normalized multivector of shape (..., 2**algebra.dim).
         """
         norms = jnp.concatenate(self.algebra.norms(input), axis=-1)
-        print("norms in grade norm", norms)
+
         factor = self.param(
             "factor", zeros, (1, norms.shape[1], self.algebra.n_subspaces)
         )
@@ -66,58 +66,46 @@ class GradeNorm(nn.Module):
 # TODO: THIS IS THE CONDITION GRADE NORM THAT I WAS TRYING
 # TO USE TO NORMALISE THE CONDITION SO THAT THE VALUES DON'T EXPLODE TO NAN IN THE 2D MAXWELL SIM.
 class ConditionGradeNorm(nn.Module):
-    """Grade–wise scaling of the *tanh-gated* condition by a learnable multiple
-    of the norm of the relative-position vector.
+    """Grade-wise scaling of the *tanh-gated* condition by a learnable factor.
 
-    The operation is
-        out = tanh(input) * (α_g * ∥relpos∥)
-    where α_g is a learned positive scalar for every grade g.  Because ∥relpos∥
-    is invariant under O(p,q) and the scaling factor is per-grade (scalar), the
-    transformation is O(p,q)-equivariant and grade-preserving.
+    The scaling parameter α_g is learned per grade and is **constant w.r.t. the
+    batch**, so we create it once in `setup` with a **static** shape that only
+    depends on the known number of channels.
     """
 
-    algebra: object  # instance of CliffordAlgebra passed from the parent module
+    algebra: object
+    num_channels: int  # <<< static, passed from parent module
 
-    @nn.compact
-    def __call__(self, input, relpos_norm):
-        """Apply tanh and scale grade-wise.
-
-        Args
-        ----
-        input:        jnp.ndarray with shape (P, C, 2**dim) – condition repeated
-                       over the kernel grid positions.
-        relpos_norm:  jnp.ndarray with shape (P, 1) or (P,) giving ∥relpos∥ for
-                       each position of the kernel grid.
-
-        Returns
-        -------
-        output:      jnp.ndarray of the same shape as *input*.
-        """
-
-        relpos_norm = jnp.asarray(relpos_norm)  # ensure JAX array
-
-        # 1. Non-linearity
-        gated = jax.nn.tanh(input)
-
-        # 2. Per-grade learnable multipliers α_g ≥ 0
-        n_channels = gated.shape[1]
-        grade_mult = self.param(
-            "grade_mult", constant(1.0), (1, n_channels, self.algebra.n_subspaces)
+    def setup(self):
+        # One learnable multiplier per (channel, grade)
+        n_sub = int(self.algebra.n_subspaces)
+        self.grade_mult = self.param(
+            "grade_mult", constant(1.0), (1, int(self.num_channels), n_sub)
         )
 
-        # Broadcast α_g over positions (P) and make shape (P, C, n_subspaces)
-        grade_mult = jnp.broadcast_to(grade_mult, (gated.shape[0],) + grade_mult.shape[1:])
+    def __call__(self, input, relpos_norm):
+        """Scale each grade by tanh(input) * (α_g * ∥relpos∥).
 
-        # 3. Broadcast relpos_norm (shape P,n_subspaces) over channels
-        #    Expect relpos_norm.shape == (P, n_subspaces)
+        Parameters
+        ----------
+        input:       (P, C, 2**dim) tensor – condition replicated over kernel points
+        relpos_norm: (P,) **or** (P, n_subspaces) – norm per grid point
+        """
+
+        # Non-linearity first
+        gated = jax.nn.tanh(input)
+
+        # Broadcast learnable multipliers over positions
+        grade_mult = jnp.broadcast_to(self.grade_mult, (gated.shape[0],) + self.grade_mult.shape[1:])
+
+        # Bring relpos_norm to shape (P, 1, n_subspaces)
         if relpos_norm.ndim == 1:
-            relpos_norm = relpos_norm[:, None]  # (P,1)
-
-        # reshape to (P,1,n_subspaces) then broadcast multiply
+            relpos_norm = relpos_norm[:, None]
         relpos_norm = relpos_norm.reshape(gated.shape[0], 1, -1)
+
         scale_per_grade = grade_mult * relpos_norm  # (P, C, n_subspaces)
 
-        # 4. Replicate the per-grade factor over the blades inside each grade
-        scale = jnp.repeat(scale_per_grade, self.algebra.subspaces, axis=-1)  # (P,C,2**dim)
+        # Replicate per-grade factor over blades within each grade
+        scale = jnp.repeat(scale_per_grade, self.algebra.subspaces, axis=-1)
 
         return gated * scale
