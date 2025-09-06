@@ -12,6 +12,9 @@ from models.resnets import ResNet, CSResNet
 from training.common import init_train_state, train_and_evaluate, test
 from datasets.preprocess import preprocess_fn
 from datasets.loader import create_data_loader
+#jax.config.update("jax_debug_nans", True)
+#jax.config.update("jax_check_tracer_leaks", True)
+#jax.config.update("jax_log_compiles", True)
 
 # Print GPU info
 print("CUDA_VISIBLE_DEVICES:", os.environ.get('CUDA_VISIBLE_DEVICES'))
@@ -48,7 +51,7 @@ train_args.add_argument("--batch_size", type=int, default=8)
 train_args.add_argument("--learning_rate", type=float, default=1e-3)
 train_args.add_argument("--weight_decay", type=float, default=0.0)
 train_args.add_argument("--start_step", type=int, default=0)
-train_args.add_argument("--num_epochs", type=int, default=1500)
+train_args.add_argument("--num_epochs", type=int, default=3000)
 train_args.add_argument("--grad_accumulation_steps", type=int, default=1)
 train_args.add_argument("--grad_norm_clip", type=float, default=1.0)
 train_args.add_argument("--scheduler", type=str, default="none")
@@ -62,7 +65,7 @@ data_args.add_argument("--time_future", type=int, default=1)
 kernel_args = parser.add_argument_group("Kernel Arguments")
 kernel_args.add_argument("--kernel_hidden_dim", type=int, default=12)
 kernel_args.add_argument("--kernel_num_layers", type=int, default=4)
-kernel_args.add_argument("--kernel_type", type=str, choices=["default", "composed", "conditioned"], default="default")
+kernel_args.add_argument("--kernel_type", type=str, choices=["default", "composed", "conditioned", "new_conditioned", "alt_conditioned"], default="default")
 
 
 def main(args):
@@ -132,6 +135,7 @@ def main(args):
                 make_channels=make_channels,
                 blocks=args.blocks,
                 norm=args.norm,
+                batch_size=args.batch_size,
             )
         else:
             raise ValueError("Model not supported.")
@@ -244,7 +248,7 @@ def main(args):
     print("Data loaded. Starting training...")
     if args.wandb_id is None:
         wandb.init(
-            name=f"{args.experiment}-{args.model}-{args.metric}-{args.num_data}-{args.test}",
+            name=f"{args.experiment}-{args.model}-{args.metric}-{args.num_data}-{args.kernel_type}",
             project="clifford-equivariant-cnns",
         )
         wandb.config.update(args)

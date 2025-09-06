@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import jax
 
 from modules.conv.convolution import CliffordSteerableConv, ComposedCliffordSteerableConv, ConditionedCliffordSteerableConv
+from modules.conv.convolution import NewConditionedCliffordSteerableConv, AltConditionedCliffordSteerableConv
 from modules.core.norm import MVLayerNorm
 from modules.core.mvgelu import MVGELU
 
@@ -62,7 +63,7 @@ class CSBasicBlock(nn.Module):
             "mask_size": self.mask_size,
             "bias_dims": self.bias_dims,
             "product_paths_sum": self.product_paths_sum,
-            "padding_mode": self.padding_mode,
+            "padding_mode": self.padding_mode
         }
 
         if self.kernel_type == "default":
@@ -71,6 +72,11 @@ class CSBasicBlock(nn.Module):
             Convolution = ComposedCliffordSteerableConv
         elif self.kernel_type == "conditioned":
             Convolution = ConditionedCliffordSteerableConv
+        elif self.kernel_type == "new_conditioned":
+            Convolution = NewConditionedCliffordSteerableConv
+        elif self.kernel_type == "alt_conditioned":
+            Convolution = AltConditionedCliffordSteerableConv
+
 
         out = Convolution(
             c_in=self.in_channels,
@@ -146,6 +152,7 @@ class CSResNet(nn.Module):
     norm: bool = True
     make_channels: bool = False
     padding_mode: str = "SAME"
+    batch_size: int = 1
 
     def setup(self):
         self.conv_config = {
@@ -155,7 +162,7 @@ class CSResNet(nn.Module):
             "num_layers": self.kernel_num_layers,
             "hidden_dim": self.kernel_hidden_dim,
             "product_paths_sum": self.product_paths_sum,
-            "padding_mode": self.padding_mode,
+            "padding_mode": self.padding_mode
         }
 
         self.block_config = {
@@ -169,7 +176,7 @@ class CSResNet(nn.Module):
             "kernel_size": self.kernel_size,
             "kernel_type": self.kernel_type,
             "bias_dims": self.bias_dims,
-            "padding_mode": self.padding_mode,
+            "padding_mode": self.padding_mode
         }
 
     @nn.compact
@@ -187,6 +194,8 @@ class CSResNet(nn.Module):
         # Embedding convolutional layers
         in_channels = self.time_history if not self.make_channels else 1
         out_channels = self.time_future if not self.make_channels else 1
+
+
         if self.algebra.dim == 2:
             mask_size = 64
         elif self.algebra.dim == 3:
@@ -198,11 +207,18 @@ class CSResNet(nn.Module):
             Convolution = ComposedCliffordSteerableConv
         elif self.kernel_type == "conditioned":
             Convolution = ConditionedCliffordSteerableConv
+        elif self.kernel_type == "new_conditioned":
+            Convolution = NewConditionedCliffordSteerableConv
+        elif self.kernel_type == "alt_conditioned":
+            Convolution = AltConditionedCliffordSteerableConv
 
         x = Convolution(
-            c_in=in_channels, c_out=self.hidden_channels, mask_size=mask_size,  **self.conv_config
+            c_in=in_channels, c_out=self.hidden_channels, mask_size=mask_size, **self.conv_config
         )(x)
+
         x = MVGELU()(x)
+
+        #print("X shape after first conv", x.shape)
         x = Convolution(
             c_in=self.hidden_channels, c_out=self.hidden_channels, mask_size=mask_size, **self.conv_config
         )(x)
@@ -215,7 +231,7 @@ class CSResNet(nn.Module):
 
         # Output convolutional layers
         x = Convolution(
-            c_in=self.hidden_channels, c_out=self.hidden_channels, mask_size=mask_size,  **self.conv_config
+            c_in=self.hidden_channels, c_out=self.hidden_channels, mask_size=mask_size, **self.conv_config
         )(x)
         x = MVGELU()(x)
         x = Convolution(
